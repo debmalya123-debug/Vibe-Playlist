@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from vibe_engine import get_vibe_playlist
+from vibe_engine import get_vibe_playlist, refine_playlist
 import os
 
 app = Flask(__name__)
@@ -18,6 +18,22 @@ def analyze():
         return jsonify({'error': 'No selected file'}), 400
 
     result = get_vibe_playlist(image_file)
+    
+    if 'error' in result:
+        return jsonify(result), 500
+        
+    return jsonify(result)
+
+@app.route('/refine', methods=['POST'])
+def refine():
+    data = request.json
+    current_mood = data.get('mood')
+    modifier = data.get('modifier')
+    
+    if not current_mood or not modifier:
+        return jsonify({'error': 'Missing mood or modifier'}), 400
+        
+    result = refine_playlist(current_mood, modifier)
     
     if 'error' in result:
         return jsonify(result), 500

@@ -69,11 +69,20 @@
 
             <!-- Results Content -->
             <div id="resultsPanel" class="flex flex-col h-full hidden opacity-0 transition-opacity duration-700 ease-out">
-                <div class="mb-8">
+                <div class="mb-6">
                     <h2 class="text-xs uppercase tracking-[0.2em] text-white/50 font-bold mb-3">Vibe Analysis</h2>
-                    <p id="moodDescription" class="text-2xl md:text-4xl font-light leading-tight text-white/90 mb-4"></p>
-                    <div class="flex flex-wrap gap-2" id="genreTags">
+                    <p id="moodDescription" class="text-xl md:text-2xl font-light leading-tight text-white/90 mb-4"></p>
+                    
+                    <div class="flex flex-wrap gap-2 mb-4" id="genreTags">
                         <!-- Genres will be injected here -->
+                    </div>
+
+                    <!-- Vibe Tuner Controls -->
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="refineVibe('More Energetic')" class="px-3 py-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors border border-white/10">⚡ More Energy</button>
+                        <button onclick="refineVibe('Chill Out')" class="px-3 py-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors border border-white/10">🧊 Chill Out</button>
+                        <button onclick="refineVibe('Darker')" class="px-3 py-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors border border-white/10">🌑 Darker</button>
+                        <button onclick="refineVibe('Happier')" class="px-3 py-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors border border-white/10">☀️ Happier</button>
                     </div>
                 </div>
                 
@@ -116,15 +125,7 @@
         // Form Submission
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
-            // UI Loading State
-            analyzeBtn.disabled = true;
-            btnText.textContent = 'Analyzing Vibe...';
-            loader.classList.remove('hidden');
-            resultsPanel.classList.add('hidden');
-            resultsPanel.classList.remove('opacity-100');
-            emptyState.classList.remove('hidden');
-            emptyState.classList.add('animate-pulse'); // Add pulse effect while loading
+            setLoading(true);
             
             const formData = new FormData(form);
             
@@ -145,13 +146,57 @@
                 console.error('Error:', error);
                 alert('An error occurred while communicating with the server.');
             } finally {
-                // Reset UI
+                setLoading(false);
+            }
+        });
+
+        async function refineVibe(modifier) {
+            const currentMood = moodDescription.textContent;
+            setLoading(true, `Tuning Vibe: ${modifier}...`);
+            
+            try {
+                const response = await fetch('/refine', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mood: currentMood,
+                        modifier: modifier
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayResults(data);
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while refining the vibe.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function setLoading(isLoading, text = 'Analyzing Vibe...') {
+            if (isLoading) {
+                analyzeBtn.disabled = true;
+                btnText.textContent = text;
+                loader.classList.remove('hidden');
+                resultsPanel.classList.add('hidden');
+                resultsPanel.classList.remove('opacity-100');
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('animate-pulse');
+            } else {
                 analyzeBtn.disabled = false;
                 btnText.textContent = 'Generate Playlist';
                 loader.classList.add('hidden');
                 emptyState.classList.remove('animate-pulse');
             }
-        });
+        }
 
         function displayResults(data) {
             emptyState.classList.add('hidden');

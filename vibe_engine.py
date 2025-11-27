@@ -37,8 +37,43 @@ def get_vibe_playlist(image_file):
         """
         
         response = model.generate_content([prompt, img])
-        text_response = response.text.strip()
+        return _process_gemini_response(response.text)
+
+    except Exception as e:
+        print(f"Error in vibe_engine: {e}")
+        return {'error': str(e)}
+
+def refine_playlist(current_mood, modifier):
+    """
+    Refines the playlist based on a modifier (e.g., 'More Energetic').
+    """
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash-lite')
         
+        prompt = f"""
+        The current mood is: "{current_mood}".
+        The user wants to make it: "{modifier}".
+        
+        Curate a NEW playlist of 10 songs that matches the modified mood.
+        
+        Return a JSON object with the following keys:
+        - mood_description: a short sentence describing the new mood.
+        - genres: a list of 3 music genres that match the new mood.
+        - songs: a list of objects, each with 'title' and 'artist' keys.
+        
+        Return ONLY the JSON string, no markdown formatting.
+        """
+        
+        response = model.generate_content(prompt)
+        return _process_gemini_response(response.text)
+        
+    except Exception as e:
+        print(f"Error in refine_playlist: {e}")
+        return {'error': str(e)}
+
+def _process_gemini_response(text_response):
+    try:
+        text_response = text_response.strip()
         # Clean up potential markdown code blocks
         if text_response.startswith("```json"):
             text_response = text_response[7:]
@@ -47,7 +82,7 @@ def get_vibe_playlist(image_file):
             
         vibe_data = json.loads(text_response)
         
-        # 2. Query Spotify Search for each song
+        # Query Spotify Search for each song
         tracks = []
         for song in vibe_data.get('songs', []):
             query = f"track:{song['title']} artist:{song['artist']}"
@@ -73,6 +108,9 @@ def get_vibe_playlist(image_file):
             'genres': vibe_data.get('genres'),
             'tracks': tracks
         }
+    except Exception as e:
+        print(f"Error processing Gemini response: {e}")
+        return {'error': str(e)}
 
     except Exception as e:
         print(f"Error in vibe_engine: {e}")
