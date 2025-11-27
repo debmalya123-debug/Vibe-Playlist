@@ -18,25 +18,27 @@ sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
     client_secret=os.getenv("SPOTIPY_CLIENT_SECRET")
 ))
 
-def get_vibe_playlist(image_file):
+def get_vibe_playlist(image_file, model_type='gemini'):
     """
-    Analyzes the image using Gemini and fetches a matching playlist using ReccoBeats.
+    Analyzes the image using Gemini and fetches a matching playlist.
+    model_type: 'gemini' or 'custom_ai' (ReccoBeats)
     """
     try:
-        # 1. Analyze Image with Gemini to get Mood and Seed Track
+        # 1. Analyze Image with Gemini
         model = genai.GenerativeModel('gemini-2.5-flash-lite')
         img = Image.open(image_file)
         
         prompt = """
         Analyze this image and determine its mood. 
-        Then, identify ONE perfect "seed song" (Title - Artist) that captures this vibe.
-        Also provide a backup list of 10 songs in case the recommendation engine fails.
+        
+        Task 1: Curate a playlist of 10 songs that perfectly match this mood (Title - Artist).
+        Task 2: Identify ONE perfect "seed song" (Title - Artist) for a recommendation engine.
         
         Return a JSON object with the following keys:
         - mood_description: a short sentence describing the mood.
         - genres: a list of 3 music genres that match the mood.
-        - seed_song: an object with 'title' and 'artist' keys.
-        - backup_songs: a list of objects, each with 'title' and 'artist' keys.
+        - songs: a list of objects, each with 'title' and 'artist' keys (The curated playlist).
+        - seed_song: an object with 'title' and 'artist' keys (The seed song).
         
         Return ONLY the JSON string, no markdown formatting.
         """
@@ -52,29 +54,36 @@ def get_vibe_playlist(image_file):
             
         vibe_data = json.loads(text_response)
         
-        # 2. Get Seed Track ID from Spotify
-        seed_song = vibe_data.get('seed_song')
-        seed_track_id = None
-        
-        if seed_song:
-            query = f"track:{seed_song['title']} artist:{seed_song['artist']}"
-            try:
-                results = sp.search(q=query, type='track', limit=1)
-                items = results['tracks']['items']
-                if items:
-                    seed_track_id = items[0]['id']
-            except Exception as e:
-                print(f"Error searching for seed song: {e}")
-
-        # 3. Get Recommendations from ReccoBeats (or fallback)
         tracks = []
-        if seed_track_id:
-            tracks = _get_reccobeats_recommendations(seed_track_id)
+        
+        if model_type == 'custom_ai':
+            # --- Custom AI (ReccoBeats) Path ---
+            print("Using Custom AI (ReccoBeats)...")
+            seed_song = vibe_data.get('seed_song')
+            seed_track_id = None
             
-        # Fallback to Gemini's backup list if ReccoBeats fails or no seed found
-        if not tracks:
-            print("Falling back to Gemini curation...")
-            tracks = _fetch_spotify_details(vibe_data.get('backup_songs', []))
+            if seed_song:
+                query = f"track:{seed_song['title']} artist:{seed_song['artist']}"
+                try:
+                    results = sp.search(q=query, type='track', limit=1)
+                    items = results['tracks']['items']
+                    if items:
+                        seed_track_id = items[0]['id']
+                except Exception as e:
+                    print(f"Error searching for seed song: {e}")
+
+            if seed_track_id:
+                tracks = _get_reccobeats_recommendations(seed_track_id)
+            
+            if not tracks:
+                print("ReccoBeats failed, falling back to Gemini curation...")
+                # Fallback to Gemini songs if ReccoBeats fails
+                tracks = _fetch_spotify_details(vibe_data.get('songs', []))
+                
+        else:
+            # --- Gemini Path ---
+            print("Using Gemini Curation...")
+            tracks = _fetch_spotify_details(vibe_data.get('songs', []))
 
         return {
             'mood': vibe_data.get('mood_description'),

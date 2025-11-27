@@ -17,7 +17,8 @@ def analyze():
     if image_file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
-    result = get_vibe_playlist(image_file)
+    model_type = request.form.get('model_type', 'gemini')
+    result = get_vibe_playlist(image_file, model_type)
     
     if 'error' in result:
         return jsonify(result), 500
