@@ -3,3 +3,4 @@ google-generativeai
 spotipy
 python-dotenv
 pillow
+requests
