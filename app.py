@@ -18,7 +18,8 @@ def analyze():
         return jsonify({'error': 'No selected file'}), 400
 
     model_type = request.form.get('model_type', 'gemini')
-    result = get_vibe_playlist(image_file, model_type)
+    language = request.form.get('language', 'any')
+    result = get_vibe_playlist(image_file, model_type, language)
     
     if 'error' in result:
         return jsonify(result), 500

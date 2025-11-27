@@ -18,17 +18,32 @@ sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
     client_secret=os.getenv("SPOTIPY_CLIENT_SECRET")
 ))
 
-def get_vibe_playlist(image_file, model_type='gemini'):
+def get_vibe_playlist(image_file, model_type='gemini', language='any'):
     """
     Analyzes the image using Gemini and fetches a matching playlist.
     model_type: 'gemini' or 'custom_ai' (ReccoBeats)
+    language: Language preference for songs (e.g., 'any', 'english', 'hindi', 'korean', 'japanese', 'spanish')
     """
     try:
         # 1. Analyze Image with Gemini
         model = genai.GenerativeModel('gemini-2.5-flash-lite')
         img = Image.open(image_file)
         
-        prompt = """
+        # Map language to natural language
+        language_map = {
+            'any': 'Any',
+            'english': 'English',
+            'hindi': 'Hindi',
+            'korean': 'Korean',
+            'japanese': 'Japanese',
+            'spanish': 'Spanish'
+        }
+        
+        language_name = language_map.get(language.lower(), 'Any')
+        
+        # Create different prompts based on language selection
+        if language_name == 'Any':
+            prompt = """
         Analyze this image and determine its mood. 
         
         Task 1: Curate a playlist of 10 songs that perfectly match this mood (Title - Artist).
@@ -39,6 +54,23 @@ def get_vibe_playlist(image_file, model_type='gemini'):
         - genres: a list of 3 music genres that match the mood.
         - songs: a list of objects, each with 'title' and 'artist' keys (The curated playlist).
         - seed_song: an object with 'title' and 'artist' keys (The seed song).
+        
+        Return ONLY the JSON string, no markdown formatting.
+        """
+        else:
+            prompt = f"""
+        Analyze this image and determine its mood. 
+        
+        Task 1: Curate a playlist of 10 songs IN {language_name.upper()} ONLY that perfectly match this mood (Title - Artist).
+        Task 2: Identify ONE perfect "seed song" (Title - Artist) IN {language_name.upper()} for a recommendation engine.
+        
+        IMPORTANT: All songs MUST be in {language_name} language. Do not include songs in other languages.
+        
+        Return a JSON object with the following keys:
+        - mood_description: a short sentence describing the mood.
+        - genres: a list of 3 music genres that match the mood.
+        - songs: a list of objects, each with 'title' and 'artist' keys (The curated playlist in {language_name}).
+        - seed_song: an object with 'title' and 'artist' keys (The seed song in {language_name}).
         
         Return ONLY the JSON string, no markdown formatting.
         """
