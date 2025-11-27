@@ -1,0 +1,5 @@
+/.cache
+/.env
+/.venv
+/debug_spotify.py
+/__pycache__

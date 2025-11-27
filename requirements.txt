@@ -1,0 +1,5 @@
+flask
+google-generativeai
+spotipy
+python-dotenv
+pillow
