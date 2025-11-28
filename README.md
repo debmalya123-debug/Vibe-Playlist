@@ -49,7 +49,6 @@ VibePlaylist is an AI-powered web application that analyzes the emotional essenc
 - Capture images directly from your mobile device camera
 - Seamless switching between front and back cameras
 - Live camera preview before capture
-- **Note**: Requires HTTPS on mobile - see [Mobile Camera Setup Guide](MOBILE_CAMERA_SETUP.md)
 
 ### 🌊 **Premium UI/UX**
 
