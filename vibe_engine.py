@@ -1,6 +1,7 @@
 import os
 import json
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from dotenv import load_dotenv
@@ -8,15 +9,16 @@ from PIL import Image
 import requests
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 # Configure APIs
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY"),
+    http_options=types.HttpOptions(timeout=120000)
+)
 
-sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-    client_id=os.getenv("SPOTIPY_CLIENT_ID"),
-    client_secret=os.getenv("SPOTIPY_CLIENT_SECRET")
-))
+# Spotify API has been bypassed due to developer API restrictions
+sp = None
 
 def get_vibe_playlist(image_file, model_type='gemini', language='any'):
     """
@@ -26,8 +28,14 @@ def get_vibe_playlist(image_file, model_type='gemini', language='any'):
     """
     try:
         # 1. Analyze Image with Gemini
-        model = genai.GenerativeModel('gemini-2.5-flash-lite')
         img = Image.open(image_file)
+        
+        # Convert to RGB if needed to avoid transparency issues
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+            
+        # Resize image to reduce API payload size and processing time
+        img.thumbnail((1024, 1024))
         
         # Map language to natural language
         language_map = {
@@ -75,7 +83,10 @@ def get_vibe_playlist(image_file, model_type='gemini', language='any'):
         Return ONLY the JSON string, no markdown formatting.
         """
         
-        response = model.generate_content([prompt, img])
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[prompt, img]
+        )
         text_response = response.text.strip()
         
         # Clean up potential markdown code blocks
@@ -86,36 +97,9 @@ def get_vibe_playlist(image_file, model_type='gemini', language='any'):
             
         vibe_data = json.loads(text_response)
         
-        tracks = []
-        
-        if model_type == 'custom_ai':
-            # --- Custom AI (ReccoBeats) Path ---
-            print("Using Custom AI (ReccoBeats)...")
-            seed_song = vibe_data.get('seed_song')
-            seed_track_id = None
-            
-            if seed_song:
-                query = f"track:{seed_song['title']} artist:{seed_song['artist']}"
-                try:
-                    results = sp.search(q=query, type='track', limit=1)
-                    items = results['tracks']['items']
-                    if items:
-                        seed_track_id = items[0]['id']
-                except Exception as e:
-                    print(f"Error searching for seed song: {e}")
-
-            if seed_track_id:
-                tracks = _get_reccobeats_recommendations(seed_track_id)
-            
-            if not tracks:
-                print("ReccoBeats failed, falling back to Gemini curation...")
-                # Fallback to Gemini songs if ReccoBeats fails
-                tracks = _fetch_spotify_details(vibe_data.get('songs', []))
-                
-        else:
-            # --- Gemini Path ---
-            print("Using Gemini Curation...")
-            tracks = _fetch_spotify_details(vibe_data.get('songs', []))
+        # Due to Spotify API restrictions, we directly format the Gemini output
+        # to render as a list instead of querying Spotify.
+        tracks = [{'name': song.get('title'), 'artist': song.get('artist')} for song in vibe_data.get('songs', [])]
 
         # Extract color palette from image
         colors = extract_color_palette(image_file)
@@ -136,8 +120,6 @@ def refine_playlist(current_mood, modifier):
     Refines the playlist based on a modifier using ReccoBeats (via a new seed).
     """
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash-lite')
-        
         prompt = f"""
         The current mood is: "{current_mood}".
         The user wants to make it: "{modifier}".
@@ -154,7 +136,10 @@ def refine_playlist(current_mood, modifier):
         Return ONLY the JSON string, no markdown formatting.
         """
         
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
         text_response = response.text.strip()
         
         if text_response.startswith("```json"):
@@ -164,27 +149,8 @@ def refine_playlist(current_mood, modifier):
             
         vibe_data = json.loads(text_response)
         
-        # Get Seed Track ID
-        seed_song = vibe_data.get('seed_song')
-        seed_track_id = None
-        
-        if seed_song:
-            query = f"track:{seed_song['title']} artist:{seed_song['artist']}"
-            try:
-                results = sp.search(q=query, type='track', limit=1)
-                items = results['tracks']['items']
-                if items:
-                    seed_track_id = items[0]['id']
-            except Exception as e:
-                print(f"Error searching for seed song: {e}")
-                
-        # Get Recommendations
-        tracks = []
-        if seed_track_id:
-            tracks = _get_reccobeats_recommendations(seed_track_id)
-            
-        if not tracks:
-            tracks = _fetch_spotify_details(vibe_data.get('backup_songs', []))
+        # Due to Spotify API restrictions, directly format the Gemini backup songs
+        tracks = [{'name': song.get('title'), 'artist': song.get('artist')} for song in vibe_data.get('backup_songs', [])]
             
         return {
             'mood': vibe_data.get('mood_description'),
